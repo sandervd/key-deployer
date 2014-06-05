@@ -25,20 +25,19 @@ def agent_auth(transport, username):
         return
         
     for key in agent_keys:
-        print('Trying ssh-agent key %s' % hexlify(key.get_fingerprint()))
+        # print('Trying ssh-agent key %s' % hexlify(key.get_fingerprint()))
         try:
             transport.auth_publickey(username, key)
-            print('... success!')
             return
         except paramiko.SSHException:
-            print('... nope.')
+            print('Unable to connect. Is your SSH agent running?')
 
 def deploy_host(hostname, keys_to_deploy):
 	username = ''
 	if hostname.find('@') >= 0:
 		username, hostname = hostname.split('@')
 	if len(hostname) == 0:
-		print('*** Hostname required.')
+		print('Host %s: hostname required.' % hostname)
 		return 1
 	port = 22
 	if hostname.find(':') >= 0:
@@ -46,15 +45,14 @@ def deploy_host(hostname, keys_to_deploy):
 		port = int(portstr)
 
 	if len(username) == 0:
-		print('*** Username required ***')
+		print('Host %s: username required.' % hostname)
 		return 1
 	# now connect
 	try:
 		sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		sock.connect((hostname, port))
 	except Exception as e:
-		print('*** Connect failed: ' + str(e))
-		traceback.print_exc()
+		print('Host %s: connect failed: ' % hostname + str(e))
 		return 1
 
 	try:
@@ -62,7 +60,7 @@ def deploy_host(hostname, keys_to_deploy):
 		try:
 			t.start_client()
 		except paramiko.SSHException:
-			print('*** SSH negotiation failed.')
+			print('Host %s: SSH negotiation failed.' % hostname)
 			return 1
 
 		try:
@@ -77,18 +75,16 @@ def deploy_host(hostname, keys_to_deploy):
 		# check server's host key -- this is important.
 		key = t.get_remote_server_key()
 		if hostname not in keys:
-			print('*** WARNING: Unknown host key!')
+			print('Host %s: WARNING: Unknown host key!' % hostname)
 		elif key.get_name() not in keys[hostname]:
-			print('*** WARNING: Unknown host key!')
+			print('Host %s: WARNING: Unknown host key!' % hostname)
 		elif keys[hostname][key.get_name()] != key:
-			print('*** WARNING: Host key has changed!!!')
+			print('Host %s: WARNING: Host key has changed!!! Won\'t deploy.' % hostname)
 			return 1
-		else:
-			print('*** Host key OK.')
 
 		agent_auth(t, username)
 		if not t.is_authenticated():
-			print('*** Authentication failed. :(')
+			print('Host %s: Authentication failed.' % hostname)
 			t.close()
 			return 1
 
@@ -123,7 +119,7 @@ def deploy_host(hostname, keys_to_deploy):
 		t.close()
 
 	except Exception as e:
-		print('*** Caught exception: ' + str(e.__class__) + ': ' + str(e))
+		print('Caught exception: ' + str(e.__class__) + ': ' + str(e))
 		traceback.print_exc()
 		try:
 			t.close()
@@ -146,7 +142,7 @@ def deploy(directory):
 		with open(directory + '/' + keyfile, "r") as text:
 			for line in text:
 				keys.append(line)
-		print('Deploying to {0}: {1}' . format(keyfile, keys))
+		# print('Deploying to {0}: {1}' . format(keyfile, keys))
 		deploy_host(keyfile, keys)
 # setup logging
 paramiko.util.log_to_file('demo.log')
